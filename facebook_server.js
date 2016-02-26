@@ -2,37 +2,39 @@ Facebook = {};
 
 var querystring = Npm.require('querystring');
 
+// This function called by browser based FB, not cordova FB Connect pathway
+OAuth.registerService('facebook', 2, null, function (query) {
+  var authData = getTokenResponse(query);
+  var details = getUserDetails(authData);
+  console.log('Got FB details');
+  return details;
+}.bind(this));
 
-OAuth.registerService('facebook', 2, null, function(query) {
-
-  var response = getTokenResponse(query);
-  var accessToken = response.accessToken;
-
+function getUserDetails(authData) {
   // include all fields from facebook
   // http://developers.facebook.com/docs/reference/login/public-profile-and-friend-list/
   var whitelisted = ['id', 'email', 'name', 'first_name',
       'last_name', 'link', 'gender', 'locale', 'age_range'];
 
-  var identity = getIdentity(accessToken, whitelisted);
+  var identity = getIdentity(authData.accessToken, whitelisted);
 
   var serviceData = {
-    accessToken: accessToken,
-    expiresAt: (+new Date) + (1000 * response.expiresIn)
+    accessToken: authData.accessToken,
+    expiresAt: (+new Date) + (1000 * authData.expiresIn)
   };
 
-
   var fields = _.pick(identity, whitelisted);
-  fields.profilePictureURL = getProfilePicture(accessToken);
+  fields.profilePictureURL = getProfilePicture(authData.accessToken);
   _.extend(serviceData, fields);
 
   return {
     serviceData: serviceData,
     options: {profile: {name: identity.name}}
   };
-});
+};
 
 // checks whether a string parses as JSON
-var isJSON = function (str) {
+function isJSON(str) {
   try {
     JSON.parse(str);
     return true;
@@ -44,7 +46,8 @@ var isJSON = function (str) {
 // returns an object containing:
 // - accessToken
 // - expiresIn: lifetime of token in seconds
-var getTokenResponse = function (query) {
+function getTokenResponse(query) {
+  console.log('Getting token response');
   var config = ServiceConfiguration.configurations.findOne({service: 'facebook'});
   if (!config)
     throw new ServiceConfiguration.ConfigError();
@@ -82,13 +85,15 @@ var getTokenResponse = function (query) {
     throw new Error("Failed to complete OAuth handshake with facebook " +
                     "-- can't find access token in HTTP response. " + responseContent);
   }
+  console.log('Token', fbAccessToken)
+  console.log('expires', fbExpires)
   return {
     accessToken: fbAccessToken,
     expiresIn: fbExpires
   };
 };
 
-var getIdentity = function (accessToken, fields) {
+function getIdentity (accessToken, fields) {
   try {
     return HTTP.get("https://graph.facebook.com/v2.4/me", {
       params: {
@@ -102,18 +107,21 @@ var getIdentity = function (accessToken, fields) {
   }
 };
 
-var getProfilePicture = function (accessToken) {
+function getProfilePicture (accessToken) {
   try {
     // Minimum FB profile pic size is 180x180px
     return HTTP.get('https://graph.facebook.com/v2.0/me/picture/?redirect=false&height=180&width=180', {
       params: { access_token: accessToken },
     }).data.data.url;
   } catch (err) {
-    throw _.extend(new Error("Failed to fetch identity from Facebook: " + err.message),
+    throw _.extend(new Error("Failed to fetch profile picture from Facebook: " + err.message),
                    { response: err.response });
   }
 };
 
 Facebook.retrieveCredential = function(credentialToken, credentialSecret) {
   return OAuth.retrieveCredential(credentialToken, credentialSecret);
+};
+Facebook.getUserDetails = function(authData) {
+  return getUserDetails(authData);
 };

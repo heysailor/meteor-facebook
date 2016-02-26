@@ -1,7 +1,7 @@
 Package.describe({
   name: 'heysailor:facebook',
   summary: "Facebook OAuth flow",
-  version: "1.2.3"
+  version: "1.2.6"
 });
 
 Package.onUse(function(api) {
